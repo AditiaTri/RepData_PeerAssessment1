@@ -5,21 +5,134 @@ output:
     keep_md: true
 ---
 
+# Loading and preprocessing the data
+## 1.Load the data (i.e. read.csv())
+```{r, echo=TRUE}
+library(ggplot2)
 
-## Loading and preprocessing the data
+df <- read.csv("./activity/activity.csv", stringsAsFactors=FALSE, header=TRUE)
+```
+## 2.Process/transform the data (if necessary) into a format suitable for analysis
+```{r, echo=TRUE}
+# Fix the date column format
+df$date <- as.Date(df$date)
+```
+# What is mean total number of steps taken per day?
+# For this part of the assignment, we;ll ignore the missing values in the dataset.
+
+## 1.Calculate the total number of steps taken per day
+```{r, echo=TRUE}
+steps_by_day <- tapply(df$steps, df$date, sum, na.rm=TRUE)
+steps_by_day
+```
+## 2.Make a histogram of the total number of steps taken each day
+```{r, echo=TRUE}
+hist(steps_by_day)
+```
+## 3.Calculate and report the mean and median of the total number of steps taken per day
+```{r, echo=TRUE}
+mean(steps_by_day, na.rm=TRUE)
+median(steps_by_day, na.rm=TRUE)
+```
 
 
+# What is the average daily activity pattern?
+## 1.Make a time series plot (i.e. type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all days (y-axis)
+```{r, echo=TRUE}
+df_agg <- aggregate(steps ~ interval, df, mean, na.rm=TRUE)
+df_agg
 
-## What is mean total number of steps taken per day?
+chart <- ggplot(df_agg, aes(x=interval, y=steps))
+chart <- chart + 
+  geom_line(size = 1) +
+  xlab("5-min Interval") +
+  ylab("Mean of Steps Taken") +
+  ggtitle("Mean of Steps by 5-min Intervals") + 
+  theme(legend.position="right")
+print(chart)
+
+```
 
 
+## 2.Which 5-minute interval, on average across all the days in the dataset, contains the maximum number of steps?
+```{r, echo=TRUE}
+averages[which.max(df_agg$steps),]
+```
 
-## What is the average daily activity pattern?
+# Inputing missing values
+Note that there are a number of days/intervals where there are missing values (coded as NA). The presence of missing days may introduce bias into some calculations or summaries of the data.
 
+## 1. Calculate and report the total number of missing values in the dataset (i.e. the total number of rows with NAs)
+```{r, echo=TRUE}
+sum(!complete.cases(df))
+```
 
+## 2. Devise a strategy for filling in all of the missing values in the dataset. The strategy does not need to be sophisticated. For example, you could use the mean/median for that day, or the mean for that 5-minute interval, etc.
 
-## Imputing missing values
+We'll take the mean of the interval and apply the value to NA values of "steps" column.
+```{r, echo=TRUE}
 
+df_avg_day <- aggregate(steps ~ interval, df, mean, na.rm=TRUE)
 
+df_merge <- merge(df, df_avg_day, by="interval", all=TRUE)
 
-## Are there differences in activity patterns between weekdays and weekends?
+df_merge$steps <- ifelse(is.na(df_merge$steps.x), df_merge$steps.y, df_merge$steps.x)
+
+df_merge <- df_merge[ , !(names(df_merge) %in% c("steps.x","steps.y"))]
+
+sum(!complete.cases(df_merge))
+
+df_merge
+
+```
+
+## 3. Create a new dataset that is equal to the original dataset but with the missing data filled in.
+```{r, echo=TRUE}
+df_merge
+```
+
+## 4. Make a histogram of the total number of steps taken each day and Calculate and report the mean and median total number of steps taken per day. Do these values differ from the estimates from the first part of the assignment? What is the impact of imputing missing data on the estimates of the total daily number of steps?
+```{r, echo=TRUE}
+# With NA values
+hist(steps_by_day)
+mean(steps_by_day, na.rm=TRUE)
+median(steps_by_day, na.rm=TRUE)
+
+# With NA values filled in
+steps_by_day_fill <- tapply(df_merge$steps, df_merge$date, sum)
+hist(steps_by_day_fill)
+mean(steps_by_day_fill)
+median(steps_by_day_fill)
+```
+Mean and median values are higher after filling in missing data. This behavior is understable upon viewing the distribution of the original data. NA values (which interpreted as 0) causes the distribution to skew to the left of mean.  
+
+However, after replacing NA `steps` values with the mean `steps`
+of each day, those 0 values are effectively removed from the histogram. Thus, the mean and median shift further to the right (higher value),
+
+# Are there differences in activity patterns between weekdays and weekends?
+For this part the weekdays() function may be of some help here. Use the dataset with the filled-in missing values for this part.
+
+## 1.Create a new factor variable in the dataset with two levels – “weekday” and “weekend” indicating whether a given date is a weekday or weekend day.
+```{r, echo=TRUE}
+c_weekdays <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+
+df_merge$f_weekday <- factor((weekdays(df_merge$date) %in% c_weekdays), 
+  levels=c(FALSE, TRUE), labels=c('weekend', 'weekday')  )
+
+```
+
+## 2.Make a panel plot containing a time series plot (i.e. type="l") of the 5-minute interval (x-axis) and the average number of steps taken, averaged across all weekday days or weekend days (y-axis). See the README file in the GitHub repository to see an example of what this plot should look like using simulated data.
+```{r, echo=TRUE}
+df_merge_agg <- aggregate(steps ~ f_weekday + interval, df_merge, mean)
+
+chart <- ggplot(df_merge_agg, aes(x=interval, y=steps, color=f_weekday))
+chart <- chart + 
+  geom_line(size = 2) +
+  facet_grid(f_weekday ~.) +
+  xlab("Interval") +
+  ylab("Mean of Steps") +
+  ggtitle("Mean of Steps by Interval (Weekend vs Weekday)") + 
+  theme(legend.position="right")
+
+print(chart)
+```
